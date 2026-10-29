@@ -1,0 +1,444 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "pwnedkeep",
+    "version": "0.1.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "description": "Your own Pwned Passwords API: `/range` answers as api.pwnedpasswords.com does, from a local copy of the data, and `/check` and `/check/bulk` answer directly.\n\nWith `PWNEDKEEP_API_KEYS` set, every request but `/health` needs a key, as `Authorization: Bearer <key>` or `X-Api-Key`. Without it, the API is open, like the public one."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {},
+    {
+      "bearer": []
+    },
+    {
+      "header": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Pwned Passwords"
+    },
+    {
+      "name": "Checks"
+    },
+    {
+      "name": "Server"
+    }
+  ],
+  "paths": {
+    "/range/{prefix}": {
+      "get": {
+        "summary": "Get the hashes that start with a prefix",
+        "tags": [
+          "Pwned Passwords"
+        ],
+        "description": "The k-anonymity search of api.pwnedpasswords.com, answered the same way: send the first five characters of a hash, get every suffix that follows them with its count, and look for your own in the list. The password, and even its full hash, never leave the client.\n\nClients of the public API work against pwnedkeep by changing the base URL.",
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "path",
+            "required": true,
+            "description": "The first five hex characters of the hash, in either case.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-Fa-f]{5}$"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`ntlm` for NT hashes; SHA-1 otherwise.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ntlm"
+              ]
+            }
+          },
+          {
+            "name": "Add-Padding",
+            "in": "header",
+            "description": "`true` adds suffixes with a count of 0, so the size of the response says nothing about the range.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One line per suffix, `SUFFIX:COUNT`, separated by CRLF, in upper case: 35 characters for SHA-1, 27 for NTLM.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "003D68EB55068C33ACE09247EE4C639306B:3\r\n012C192B2F16F82EA0EB9EF18D9D539B0DD:1"
+              }
+            }
+          },
+          "400": {
+            "description": "`The hash prefix was not valid hexadecimal`, or `The hash prefix was not in a valid format`.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "This server has no store for that mode.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/check": {
+      "post": {
+        "summary": "Check one password or hash",
+        "tags": [
+          "Checks"
+        ],
+        "description": "For your own services on your own network. Send a hash rather than the password where you can; a password is hashed here and not kept or logged.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "password": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "password"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sha1": {
+                        "type": "string",
+                        "pattern": "^[0-9A-Fa-f]{40}$"
+                      }
+                    },
+                    "required": [
+                      "sha1"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ntlm": {
+                        "type": "string",
+                        "pattern": "^[0-9A-Fa-f]{32}$"
+                      }
+                    },
+                    "required": [
+                      "ntlm"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Whether it was found, and how often.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pwned": {
+                      "type": "boolean"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Times seen in breaches."
+                    }
+                  },
+                  "required": [
+                    "pwned",
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/check/bulk": {
+      "post": {
+        "summary": "Check many hashes",
+        "tags": [
+          "Checks"
+        ],
+        "description": "Up to 10,000 hashes of one kind at a time, such as the NT hashes of a directory's accounts.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sha1": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 10000,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "sha1"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ntlm": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 10000,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "ntlm"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A count for each hash, in order, and how many were found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "hash",
+                          "count"
+                        ]
+                      }
+                    },
+                    "pwned": {
+                      "type": "integer",
+                      "description": "How many of the hashes were found."
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "pwned"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Check health",
+        "tags": [
+          "Server"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The stores that are loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "stores": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "hashes": {
+                            "type": "integer"
+                          },
+                          "builtAt": {
+                            "type": "integer",
+                            "description": "Unix seconds."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Get metrics",
+        "tags": [
+          "Server"
+        ],
+        "description": "Prometheus metrics: requests answered, hashes found, and the size and age of each store.",
+        "responses": {
+          "200": {
+            "description": "Prometheus text format.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "Get this description",
+        "tags": [
+          "Server"
+        ],
+        "responses": {
+          "200": {
+            "description": "This document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "header": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Not valid, or no store for that kind of hash.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "error"
+              ]
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "PWNEDKEEP_API_KEYS is set, and the request has none of them.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+.venv
+.git
+**/__pycache__
+*.pwnd
+*.pwnd.etags
+.pytest_cache
+.mypy_cache
+.ruff_cache

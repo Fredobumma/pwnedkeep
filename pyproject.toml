@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pwnedkeep"
+version = "0.1.0"
+description = "Your own Pwned Passwords API: the same /range endpoint as api.pwnedpasswords.com, served from a local copy of the data, plus direct and bulk checks."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Manfred Obumma", email = "fredobumma@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["pwned-passwords", "haveibeenpwned", "hibp", "passwords", "security", "k-anonymity", "self-hosted"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Framework :: AsyncIO",
+  "Intended Audience :: System Administrators",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+dependencies = [
+  "starlette>=1.0",
+  "uvicorn>=0.30",
+  "httpx[http2]>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/fredobumma/pwnedkeep"
+Issues = "https://github.com/fredobumma/pwnedkeep/issues"
+
+[project.scripts]
+pwnedkeep = "pwnedkeep.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9", "ruff>=0.17", "mypy>=2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pwnedkeep"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Starlette suggests httpx2 for its test client; httpx serves it fine, and is what pwnedkeep itself uses
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`:UserWarning"]
